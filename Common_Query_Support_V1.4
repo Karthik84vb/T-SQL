@@ -1,0 +1,509 @@
+/******* CERATE TABLE ********/
+
+use CsaaS
+SELECT * from sys.tables where name like '%Region%' and name like '%boM%' AND  modify_date > '2017-10-16 01:00:00.001' 
+Order by Name
+
+SELECT * from sys.views where name like '%Prv%' AND  modify_date > '2017-10-15 01:00:00.001' 
+Order by Name
+
+SELECT * from sys.Procedures where name like '%PrvCld%' and modify_date > '2017-10-16 01:00:00.001' 
+Order by Name
+
+SELECT * from sys.Procedures where name like '%PrvCld%' and modify_date > '2017-09-22 14:00:00.001' 
+Order by Name
+
+SELECT * FROM SYS.views WHERE NAME LIKE '%PrvCld%' AND modify_date > '2017-09-22 14:00:00.001' ORDER BY 1
+
+Select * from sysobjects where name like 'fnget%Input%'
+
+
+Select Distinct Name from syscolumns where name like '%Discount%'
+
+
+/***** SUPPORT SCRIPTS  *****/
+--> Tables
+	SELECT * FROM SYS.TABLES WHERE NAME LIKE '%backup%' AND NAME LIKE '%_Temp%' ORDER BY 1
+	SELECT * FROM SYS.TABLES WHERE NAME LIKE '%_Temp%' AND NAME NOT LIKE '%DROP%'  AND NAME NOT LIKE '%Temp%' ORDER BY 1
+	SELECT * FROM SYS.TABLES WHERE NAME LIKE '%PrvCld%' AND NAME LIKE '%Utility%'  AND NAME NOT LIKE '%Temp%' ORDER BY Name
+
+	SELECT * FROM SYS.TABLES WHERE NAME LIKE '%utility%' AND NAME NOT LIKE '%Temp%' ORDER BY 1
+	Select Distinct object_name(object_id) from sys.columns WHERE name like '%QAR%' AND object_name(object_id) NOT LIKE '%Temp%' AND object_name(object_id) NOT LIKE '%DROP%'
+
+--> View
+	SELECT * FROM SYS.VIEWS WHERE NAME LIKE '%CalcSummary%'
+
+--> Procedures
+	SELECT * FROM SYS.PROCEDURES WHERE NAME LIKE '%Utility%'
+	--> SYSCOMMENTS
+	exec SP_depends 'TBLPrvCldPlateSpinToolMirgationEffort'
+
+	SELECT DISTINCT OBJECT_NAME(id) FROM SYSCOMMENTS WHERE Text LIKE '%FnGetBackupDedupSize%' AND text like '%minnoofUnit%'
+	
+	select 'exec sp_recompile ' + Name from sys.procedures where name like '%PrvCld%'
+
+
+
+
+
+
+
+/** Validation T-SQL Scripts **/
+
+/* Table Used SPs */
+	DECLARE @SPNames VARCHAR(MAX)='', @Object varchar(1000)='TBLCalcConnectivity'
+
+	DECLARE @Out TABLE (Name varchar(128), Type varchar(128))
+	INSERT INTO @Out(Name, type) 
+	exec SP_depends @Object
+
+	DECLARE @Cmd Nvarchar(max)=''
+	SELECT @Cmd = 'SELECT DISTINCT OBJECT_NAME(id)Used_SP, ''Stored Procedure'' as Type FROM SYSCOMMENTS WHERE Text LIKE ''%' + name + '%'''
+	FROM sys.tables 
+	WHERE Name LIKE '%' + @Object + '%'
+	Print @Cmd
+
+	INSERT INTO @Out(Name, type) 
+	exec SP_executeSQL @Cmd
+	
+	SELECT @SPNames = IIF(@SPNames = '', Name, @SPNames + ', ' + NAME) 
+	FROM (Select Distinct REPLACE(name,'dbo.','') Name from @Out)t WHERE Name NOT LIKE '%_old'
+	
+	SELECT @Object as TBL_Name, REPLACE(@SPNames,'dbo.','') as SP_Names
+
+
+/* Dependencies */
+	SELECT * FROM sys.sql_expression_dependencies  
+	WHERE referencing_id = OBJECT_ID(N'SPDropdownvalues');   
+	
+	SELECT Object_name(referencing_id) AS ObjectName FROM sys.sql_expression_dependencies WHERE referenced_entity_name ='TBLClientTrans'
+
+	SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'
+
+	SELECT * FROM INFORMATION_SCHEMA.COLUMNS  
+
+
+
+	
+/* Compare Tables rows count */
+	SELECT 'SELECT ''' + Name + ''' as ObjectName, COUNT(1)Cnt from ' + Name +' Union all '
+	from sys.tables where name Not like '%_Temp' AND name like 'TBL%' AND NAME not like '%Inventory%' AND NAME not like '%BOQ%' AND NAME not like '%ForComp%'
+	AND NAME not like '%QuoteMaster%'
+
+
+
+
+
+
+
+/** Script Generator T-SQL Scripts **/
+
+/* Permanent Tables Columns Script in Single Row */
+	DECLARE @ColNames VARCHAR(MAX)='', @Object varchar(1000)='TBLCBRoleWiseRateCardMaster'
+	SELECT @ColNames = IIF(@ColNames = '', Name, @ColNames + ', ' + NAME) 
+	FROM SYS.COLUMNS WHERE OBJECT_ID = OBJECT_ID(@Object) AND is_identity =0 AND is_computed = 0
+	SELECT @ColNames
+
+
+/* Temp Tables Columns Script in Single Row */
+	DECLARE @ColNames VARCHAR(MAX)='', @tempTblID bigint, @TempTblname varchar(50)='#LBRADWAREConfigCalc'
+	SELECT @ColNames = IIF(@ColNames = '', Name, @ColNames + ', ' + NAME) 
+	FROM tempdb.SYS.COLUMNS WHERE OBJECT_ID = Object_ID('tempdb..' + @TempTblname) AND is_identity =0 AND is_computed = 0
+	SELECT @ColNames
+
+
+/* Permanent Table Insert into Script */
+	DECLARE @Coltext VARCHAR(MAX)='', @Object varchar(1000)='TBLIVMAppYoYReductionMaster'
+	SELECT @Coltext = @Coltext + NAME + ', ' FROM SYS.COLUMNS WHERE OBJECT_ID = OBJECT_ID(@Object) AND is_identity =0 AND is_computed = 0
+	Print 'INSERT INTO ' + @Object + ' (' + LEFT(@Coltext, LEN(@Coltext)-1) + ')' + CHAR(13) 
+	
+
+
+/* JSon Select format */
+	DECLARE @Coltext VARCHAR(MAX)='',@JSontext VARCHAR(MAX)='', @Object varchar(1000)='TBLStorageConfigMaster'
+	SELECT @Coltext = @Coltext + Name + ', ', @JSontext = @JSontext + SPACE(4) + NAME + ' Varchar(max) ''$."' + name + '"'', ' + CHAR(13) 
+	FROM SYS.COLUMNS WHERE OBJECT_ID = OBJECT_ID(@Object) AND is_identity =0 AND is_computed = 0 AND Name <> 'LastModified'
+	Print 'DECLARE @JSon VARCHAR(Max)=''''' + CHAR(13) +
+			'INSERT INTO ' + @Object + ' (' + LEFT(@Coltext,LEN(@Coltext)-1) + ')' + CHAR(13) +
+			'SELECT ' + LEFT(@Coltext,LEN(@Coltext)-1) + CHAR(13) + 'FROM OPENJSON (@JSon) WITH (' + CHAR(13) + LEFT(@JSontext,LEN(@JSontext)-3) + CHAR(13) + ')'
+
+	DECLARE @ColNames VARCHAR(MAX)='', @tempTblID bigint, @TempTblname varchar(50)='dbo.tbl_Master_ProductCatalogue'
+	Select SC.NAME + ' ' + CASE WHEN ST.Name LIKE '%CHAR%' THEN ST.Name + '(' + CAST(SC.max_length AS VARCHAR(10)) + ')' ELSE ST.Name END
+	+ ' ''''$."' + SC.NAME + '"'''','
+	FROM SYS.COLUMNS SC
+	INNER JOIN sys.types ST ON ST.system_type_id = SC.system_type_id
+	WHERE OBJECT_ID = Object_ID('' + @TempTblname) 
+	ORDER BY column_id	
+
+	
+	DECLARE @Coltext VARCHAR(MAX)='',@JSontext VARCHAR(MAX)='', @Object varchar(1000)='dbo.tbl_Master_ExemptionsToStandard'
+	SELECT @Coltext = @Coltext + SC.Name + ', ', @JSontext = @JSontext + SPACE(4) + SC.NAME + ' '+ CASE WHEN ST.Name LIKE '%CHAR%' THEN ST.Name + '(' + CAST(SC.max_length AS VARCHAR(10)) + ')' ELSE ST.Name END + ' ''''$."' + SC.name + '"'''', ' + CHAR(13) 
+	FROM SYS.COLUMNS SC
+	INNER JOIN sys.types ST ON ST.system_type_id = SC.system_type_id
+	WHERE OBJECT_ID = OBJECT_ID(@Object) --AND is_identity =0 AND is_computed = 0 
+		ORDER BY column_id
+	Print 'DECLARE @JSon VARCHAR(Max)=''''' + CHAR(13) +
+			'INSERT INTO ' + @Object + ' (' + LEFT(@Coltext,LEN(@Coltext)-1) + ')' + CHAR(13) +
+			'SELECT ' + LEFT(@Coltext,LEN(@Coltext)-1) + CHAR(13) + 'FROM OPENJSON (@JSon) WITH (' + CHAR(13) + LEFT(@JSontext,LEN(@JSontext)-3) + CHAR(13) + ')'
+
+
+
+
+
+/* JSon Select format */
+	DECLARE @Coltext VARCHAR(MAX)='',@JSontext VARCHAR(MAX)='', @Object varchar(1000)='TBLDatabases', @FirstCol varchar(100)=''
+
+	SELECT TOP 1 @FirstCol = Name FROM SYS.COLUMNS WHERE OBJECT_ID = OBJECT_ID(@Object) AND is_identity =0 AND is_computed = 0 AND Name <> 'LastModified'
+	ORDER BY column_id
+
+	SELECT @Coltext = @Coltext + Name + ', ', @JSontext = @JSontext + SPACE(4) + NAME + ' Varchar(max) ''$."' + name + '"'', ' + CHAR(13) 
+	FROM SYS.COLUMNS WHERE OBJECT_ID = OBJECT_ID(@Object) AND is_identity =0 AND is_computed = 0 AND Name <> 'LastModified'
+		
+	Print 'Begin Try' + CHAR(13) + '	BEGIN TRAN' + CHAR(13) + 'IF(OBJECT_ID(''tempdb..#TMPJSon'') <> 0 ) DROP TABLE #TMPJSon'
+
+	Print 'DECLARE @JSon VARCHAR(Max)=''$JSon''' + CHAR(13) +
+			'SELECT ' + LEFT(@Coltext,LEN(@Coltext)-1) + CHAR(13) + SPACE(4) + 'INTO #TMPJSon' + CHAR(13) + 'FROM OPENJSON (@JSon) WITH (' + CHAR(13) + LEFT(@JSontext,LEN(@JSontext)-3) + CHAR(13) + ')' + CHAR(13) +
+			'WHERE ' + @FirstCol + ' IS NOT NULL'
+
+	Print 'IF EXISTS (SELECT TOP 1 1 FROM #TMPJSon) UPDATE ' + @Object + ' SET IsActive = 0 WHERE IsActive = 1
+		   
+		   INSERT INTO TBLUploadVersions (UploadData, ProcessStatus, ProcessMessages, UploadedBy, UploadedOn, Messages) Values 
+                (@JSon,''Data imported successfully!'',''Import $GetName'',UPPER(SYSTEM_USER),GetDate(),''Uploaded from '' + Host_Name() + '' PC!.'')' + CHAR(13)
+
+	Print 'INSERT INTO ' + @Object + '(' + LEFT(@Coltext,LEN(@Coltext)-1) + ')' + CHAR(13) + 
+			'SELECT ' + REPLACE(REPLACE(LEFT(@Coltext,LEN(@Coltext)-1),'IsActive', 'ISNULL(IsActive,1) as IsActive'),', ImportID', ', @@Identity') + ' FROM #TMPJSon' + CHAR(13)
+
+	Print 'SELECT @@ROWCount as RCount' 
+
+	Print 'Commit tran' + CHAR(13) + 'END Try ' + CHAR(13) + ' BEGIN CATCH' + CHAR(13) + '	RollBack Tran' + CHAR(13) + 'IF(OBJECT_ID(''tempdb..#TMPJSon'') <> 0 ) DROP TABLE #TMPJSon' + CHAR(13) + 'END Catch'
+	
+
+
+/* Powershell Import Module File */
+	DECLARE @Coltext VARCHAR(MAX)='',@JSontext VARCHAR(MAX)='', @Object varchar(1000)='TBLRegionComparisonMap', @FirstCol varchar(100)=''
+
+	SELECT TOP 1 @FirstCol = Name FROM SYS.COLUMNS WHERE OBJECT_ID = OBJECT_ID(@Object) AND is_identity =0 AND is_computed = 0 AND Name <> 'LastModified'
+	ORDER BY column_id
+
+	SELECT @Coltext = @Coltext + Name + ', ', @JSontext = @JSontext + SPACE(4) + NAME + ' Varchar(max) ''$.""' + name + '""'', ' + CHAR(13) 
+	FROM SYS.COLUMNS WHERE OBJECT_ID = OBJECT_ID(@Object) AND is_identity =0 AND is_computed = 0 AND Name <> 'LastModified'
+	Print '$TableName ="' + @Object + '"'
+	Print '$SQLQuery ="DECLARE @JSon VARCHAR(Max)=''$JSon''' + CHAR(13) +
+			'SELECT ' + LEFT(@Coltext,LEN(@Coltext)-1) + CHAR(13) + SPACE(4) + 'INTO #TMPJSon' + CHAR(13) + 
+			'FROM OPENJSON (@JSon) WITH (' + CHAR(13) + LEFT(@JSontext,LEN(@JSontext)-3) + CHAR(13) + ')' + CHAR(13) +
+			'WHERE ' + @FirstCol + ' IS NOT NULL'
+
+	Print 'IF EXISTS (SELECT TOP 1 1 FROM #TMPJSon) UPDATE <TableName> SET IsActive = 0 WHERE IsActive = 1
+		   
+		   INSERT INTO TBLUploadVersions (UploadData, ProcessStatus, ProcessMessages, UploadedBy, UploadedOn, Messages) Values 
+                (@JSon,''Data imported successfully!'',''Import $GetName'',''$env:UserDomain/$env:UserName'',GetDate(),''Uploaded from $env:ComputerName PC!.'')' + CHAR(13)
+
+	Print 'INSERT INTO <TableName> (' + LEFT(@Coltext,LEN(@Coltext)-1) + ')' + CHAR(13) + 
+			'SELECT ' + LEFT(@Coltext,LEN(@Coltext)-1) + ',@@Identity FROM #TMPJSon' + CHAR(13)
+
+	Print 'SELECT @@ROWCount as RCount"' 
+
+
+
+	DECLARE @ClientID bigint=0, @ClientTranID bigint=0
+	DECLARE @ColNames VARCHAR(MAX)='', @tempTblID bigint, @TempTblname varchar(50)='tbl_Master_ProductCatalogue', @Object varchar(200) ='tbl_Master_ProductCatalogue'
+	SELECT @ColNames = @ColNames + A.Name + ' = IIF(A.' + A.Name + ' <> B.' + A.Name + ' , B.' + A.name + ' , A.' + A.name +'),'  + CHAR(13)
+	--SELECT @ColNames = @ColNames + A.Name + ' ' + IIF(B.Name like '%Char%', B.Name + '(' + CAST(A.Max_Length as Varchar(30)) + ')',B.Name) + ' ''$.' + A.name + ''''+ ', ' + CHAR(13)			
+	--SELECT @ColNames = @ColNames + ' AND A.' + A.Name + ' <> B.' + A.Name + CHAR(13)
+	FROM SYS.COLUMNS A 
+		INNER JOIN Sys.types B ON A.system_type_id = B.system_type_id
+	WHERE OBJECT_ID = Object_ID(''+ @TempTblname) ORDER BY column_id
+
+	Print @ColNames
+
+
+/* Permanent Tables Insert and Delete */
+	DECLARE @ColNames VARCHAR(MAX)='',@Object varchar(1000)='TBLCalcColoRackUnit'
+	SELECT @ColNames = IIF(@ColNames = '', Name, @ColNames + ', ' + NAME) FROM SYS.COLUMNS WHERE OBJECT_ID = OBJECT_ID(@Object) AND is_identity =0 AND is_computed = 0 AND Name <> 'LastModified'
+	PRINT FORMATMESSAGE('IF EXISTS (SELECT TOP 1 1 FROM %s WHERE ClientID = @ClientID AND ClientTranID = @ClientTranID)', @Object) + CHAR(13) +
+			FORMATMESSAGE('    DELETE %s WHERE ClientID = @ClientID AND ClientTranID = @ClientTranID', @Object) + CHAR(13) +
+			FORMATMESSAGE('INSERT INTO %s (%s)', @Object, @ColNames) + CHAR(13) + 
+			FORMATMESSAGE('    SELECT %s FROM %s', @ColNames, @Object)
+			
+
+/* Copy the Data into one table to Another Table */
+	DECLARE @text VARCHAR(MAX)='',@Object varchar(1000)='TBLMSDevicetoFTEMaster'
+	SELECT @text = IIF(@text = '', SC.Name, @text + ', ' + SC.NAME) FROM SYS.COLUMNS SC
+		INNER JOIN Sys.types ST ON SC.system_type_id = ST.User_type_id 
+	WHERE OBJECT_ID = OBJECT_ID(@Object) AND is_identity =0 and is_computed = 0
+	print 'INSERT INTO ' + DB_name() + '.dbo.' + @Object + ' (' + @text + ') '
+	Print 'SELECT ' + @text + CHAR(13) + 'FROM XaaS.DBO.' + @Object + ' WHERE IsActive = 1'
+
+	
+
+/* Create Permanent Table From temp Table */
+	DECLARE @ClientID bigint=0, @ClientTranID bigint=0
+	DECLARE @ColNames VARCHAR(MAX)='', @tempTblID bigint, @TempTblname varchar(50)='#tmpToolsBuildEffortCost', @Object varchar(200) ='TBLCalcPSToolsDeploymentEffortPrvCld'
+	SELECT @ColNames = @ColNames + A.Name + ' ' + IIF(B.Name like '%Char%', B.Name + '(' + CAST(A.Max_Length as Varchar(30)) + ')',B.Name) + ' ' + 
+				IIF(A.is_nullable = 1 , 'NULL', 'NOT NULL') +',' + CHAR(13)  
+	FROM tempdb.SYS.COLUMNS A 
+		INNER JOIN Sys.types B ON A.system_type_id = B.system_type_id
+	WHERE OBJECT_ID = Object_ID('tempdb..'+ @TempTblname) ORDER BY column_id
+	Print  'CREATE TABLE ' + @Object + '(ID Bigint Not null IDENTITY(1,1) Primary Key,' + CHAR(13) + 
+			'ClientID Bigint Not null, ClientTranID bigint Not null, ' + CHAR(13) + LEFT(@ColNames,LEN(@ColNames)-2) + CHAR(13) + ')'	
+
+
+/* Create Permanent Table From temp Table in azure */
+		DECLARE @ColNames VARCHAR(MAX)='', @tempTblID bigint, @TempTblname varchar(50)='tempdb..#DU_Import'
+	Select SC.NAME + ' ' + CASE WHEN ST.Name LIKE '%CHAR%' THEN ST.Name + '(' + CAST(SC.max_length AS VARCHAR(10)) + ')' ELSE ST.Name END
+	FROM tempdb.SYS.COLUMNS SC
+	INNER JOIN tempdb.sys.types ST ON ST.system_type_id = SC.system_type_id
+	WHERE OBJECT_ID = Object_ID('' + @TempTblname) 
+	ORDER BY column_id
+
+	DECLARE @ColNames VARCHAR(MAX)='', @tempTblID bigint, @TempTblname varchar(50)='#TMP'
+Select SC.NAME + ' ' + CASE WHEN ST.Name LIKE '%CHAR%' THEN ST.Name + '(' + CAST(SC.max_length AS VARCHAR(10)) + ')' ELSE ST.Name END
+FROM tempdb.SYS.COLUMNS SC
+INNER JOIN sys.types ST ON ST.system_type_id = SC.system_type_id
+WHERE OBJECT_ID = Object_ID('tempdb..' + @TempTblname) AND is_identity =0 AND is_computed = 0 
+
+/* Insert into Permanent Table From temp Table */
+	DECLARE @ClientID bigint=0, @ClientTranID bigint=0
+	DECLARE @ColNames VARCHAR(MAX)='', @tempTblID bigint, @TempTblname varchar(50)='#TMPAWSServer', @Object varchar(200) ='TBLCalcComputeAWS'
+	SELECT @ColNames = IIF(@ColNames = '', Name, @ColNames + ', ' + NAME) FROM tempdb.SYS.COLUMNS WHERE OBJECT_ID = Object_ID('tempdb..' + @TempTblname)
+	PRINT FORMATMESSAGE('DECLARE @ClientID bigint=%s, @ClientTranID bigint=%s',CAST(@ClientID as Varchar), CAST(@ClientTranID as Varchar))
+	PRINT FORMATMESSAGE('SELECT @ClientID as ClientID, @ClientTranID as ClientTranID, %s INTO %s FROM %s', @ColNames, @Object, @TempTblname) + CHAR(13)
+
+	PRINT FORMATMESSAGE('IF EXISTS (SELECT TOP 1 1 FROM %s WHERE ClientID = @ClientID AND ClientTranID = @ClientTranID)', @Object) + CHAR(13) +
+			FORMATMESSAGE('%s DELETE %s WHERE ClientID = @ClientID AND ClientTranID = @ClientTranID', REPLICATE(' ',8),@Object) + CHAR(13) + CHAR(13) + 
+			FORMATMESSAGE('INSERT INTO %s (%s)', @Object, 'ClientID, ClientTranID, ' + @ColNames) + CHAR(13) + 
+			FORMATMESSAGE('SELECT %s'+ CHAR(13) + 'FROM %s', '@ClientID, @ClientTranID, ' + @ColNames, @TempTblname) + CHAR(13)
+
+
+
+/* DROP Script for Default Constraints  */
+	SELECT 'ALTER TABLE ' + object_Name(parent_object_id) + ' DROP ' + Name, Col_Name(parent_object_id,parent_column_id) 
+	FROM sys.default_constraints 
+	WHERE object_Name(parent_object_id)='TBLPrvCldLinuxLicenseQuoteMaster'
+
+	
+
+/* Error Message - PSG*/
+	DECLARE @li_ErrorMessage Varchar(max)='',@li_WarningsMessage Varchar(max)='', @li_SPName VARCHAR(150)='SPPrvCldCalcSANNetworkConnect'
+
+	IF(@@RowCount = 0) SELECT @li_WarningsMessage = @li_WarningsMessage + dbo.FN_BuildMessage (1006 ,@li_SPName)
+	IF(@@RowCount = 0) SELECT @li_ErrorMessage = @li_ErrorMessage + dbo.FN_BuildMessage (1006 ,@li_SPName,'','','','')
+	EXEC SPErrorsandWarnings @ClientID = @ClientID, @ClientTranID=@ClientTranID, @OpetDCID=@OpetDCID,@WarningsMessage = @li_WarningsMessage
+
+	EXEC SPErrorsandWarnings @ClientID = @ClientID, @ClientTranID=@ClientTranID, @OpetDCID=@OpetDCID,@ErrMessage = @li_ErrorMessage, @WarningsMessage = @li_WarningsMessage
+
+	Declare @Errors Varchar(max)=''
+	Select @Errors=Errors+ Warnings from TBLClientTrans WHERE ClientTranID = 3707
+	Select * from string_split(@Errors,'|')
+
+
+
+		DECLARE @ClientID bigint=0, @ClientTranID bigint=0
+	DECLARE @ColNames VARCHAR(MAX)='', @tempTblID bigint, @TempTblname varchar(50)='TMP'
+	SELECT @ColNames = @ColNames + A.Name + ' ' + IIF(B.Name like '%Char%', B.Name + '(' + CAST(A.Max_Length as Varchar(30)) + ')',B.Name) + ' ''$."' + A.Name + '"'', ' + CHAR(13)
+	FROM SYS.COLUMNS A 
+		INNER JOIN Sys.types B ON A.system_type_id = B.system_type_id
+	WHERE OBJECT_ID = Object_ID(''+ @TempTblname) ORDER BY column_id
+	Print @ColNames
+
+
+
+
+
+
+/***** Compare Table Data row count with other Env*****/
+
+select 'Select ''' + Name + ''' as Table_name, Count(1) Row_Count, ''UAT'' as Env from ' + name +' Union all' 
+from sys.tables where Name like 'TBL%' AND name Not like '%Quote%' AND name Not like '%_Temp%' AND name not like '%Inven%' AND name not like '%BOQ%'
+
+
+/***** Compare Table Data row count with other Env*****/
+;with CTE_UAT as
+(
+	Select 'TBLPubCldAzureReservedVMPricing' as TBL_name,'5850' as Row_Count Union all
+Select 'TBLPubCldAzureReservedVMRegionMap' as TBL_name,'28' as Row_Count 
+), CTE_Prod as
+(
+	Select 'TBLPrvCldTotalCostSummaryMonthForComp' as TBL_name,'8640' as Row_Count Union all
+	Select 'TBLMSEnvironmentSplit' as TBL_name,'1' as Row_Count 
+)
+SELECT A.TBL_name, A.RoW_Count as Row_Count_UAT, B.Row_Count AS Row_Count_Prod 
+FROM CTE_UAT A
+INNER JOIN CTE_Prod B ON A.TBL_name = B.TBL_name AND A.Row_Count <> B.Row_Count
+
+
+
+
+/**** Join Global Lookups****/
+Select '@li_' + Replace(Replace(KeyName,' ',''),'(inPercentage)','Perc') + ' = dbo.FN_GetCommercialLookupValues(@ClientTranID,''' + KeyCategory + ''',''' + KeyName + '''),'   from TBLLookupCommercial
+				 WHERE Isactive =1
+Select '@li_' + Replace(Replace(KeyName,' ',''),'(inPercentage)','Perc') + '  = 0,' + ' --> ' + KeyName from TBLLookupCommercial WHERE Isactive =1
+
+
+/**** RE SEED Identity value ****/
+DBCC CHECKIDENT ('dbo.<TableName>', RESEED, 18); 
+
+
+
+
+
+-- When will a SQL login password expire? 
+SELECT @@ServerName as InstanceName, SL.name AS LoginName 
+      ,LOGINPROPERTY (SL.name, 'PasswordLastSetTime') AS PasswordLastSetTime 
+      ,LOGINPROPERTY (SL.name, 'DaysUntilExpiration') AS DaysUntilExpiration 
+      ,DATEADD(dd, CONVERT(int, LOGINPROPERTY (SL.name, 'DaysUntilExpiration')) 
+                 , CONVERT(datetime, LOGINPROPERTY (SL.name, 'PasswordLastSetTime'))) AS PasswordExpiration 
+      ,SL.is_policy_checked AS IsPolicyChecked 
+      ,LOGINPROPERTY (SL.name, 'IsExpired') AS IsExpired 
+      ,LOGINPROPERTY (SL.name, 'IsMustChange') AS IsMustChange 
+      ,LOGINPROPERTY (SL.name, 'IsLocked') AS IsLocked 
+      ,LOGINPROPERTY (SL.name, 'LockoutTime') AS LockoutTime 
+      ,LOGINPROPERTY (SL.name, 'BadPasswordCount') AS BadPasswordCount 
+      ,LOGINPROPERTY (SL.name, 'BadPasswordTime') AS BadPasswordTime 
+      ,LOGINPROPERTY (SL.name, 'HistoryLength') AS HistoryLength 
+FROM sys.sql_logins AS SL 
+WHERE is_expiration_checked = 1 
+ORDER BY LOGINPROPERTY (SL.name, 'PasswordLastSetTime') DESC
+
+
+/* DEV and UAT Comparission */
+Declare @name varchar(100)='TBLClientTrans', @text nVarchar(max)=''
+Select @text = Concat('SELECT * from ', @Name, ' EXCEPT Select * From UAT.VDIaaS.dbo.', @Name) 
+Exec sp_executesql @text
+
+
+
+
+
+
+
+
+Select Object_ID('tempdb..#tmpNetworkCompCalc')
+
+Select * from tempdb.sys.tables WHERE Object_ID = -1293850131
+
+Select * from tempdb.sys.Columns WHERE Object_ID = -1293850131
+
+Select * from tempdb..#tmpNetworkCompCalc
+
+
+
+
+
+	
+
+	 SELECT *, OBJECT_NAME(sd.id) Dependent_Object,
+(SELECT xtype FROM sysobjects so WHERE so.id = sd.id) Object_Type
+FROM sysobjects so INNER JOIN syscolumns sc
+ON so.id = sc.id
+INNER JOIN sysdepends sd 
+ON so.id = sd.depid and sc.colid = sd.depnumber
+WHERE so.id = OBJECT_ID('TBLBuildEffortReqSpecMaster')
+AND sc.name = 'col1'
+
+
+
+
+	SELECT Formatmessage('Select DISTINCT CloudProvider from %s WHERE CloudProvider =''AWS''',Object_Name(Object_ID)) FROM sys.tables WHERE Name like '%Calc%PubCld%'
+
+	SELECT Formatmessage('Select DISTINCT CloudProvider from %s ',Object_Name(Object_ID)) FROM sys.tables WHERE Name like '%Calc%PubCld%'
+
+
+	SELECT Formatmessage('Select DISTINCT CloudProvider from %s WHERE CloudProvider =''''',Object_Name(Object_ID)) FROM sys.procedures WHERE Name like '%Calc%'
+EXCEPT
+Select Distinct Object_Name(id) from sysComments where text like '%Goto Final%' AND id IN (SELECT Object_ID FROM sys.procedures WHERE Name like '%Calc%')
+
+SELECT Formatmessage('exec dbo.SPCalcNetworkCompPrvCld %s, %s', CAST( ClientID as varchar),  CAST( ClientTranID as varchar))
+From(
+Select DISTINCT ClientID, ClientTranID from TBLCalcNWCompPSandMSEffortPrvCld WHERE CloudProvider ='Private'
+)t
+
+
+
+
+
+
+
+SET NOCOUNT ON
+DECLARE @temp TABLE(
+RowId INT PRIMARY KEY IDENTITY(1, 1),
+ForeignKeyName NVARCHAR(200),
+ForeignKeyTableSchema NVARCHAR(200),
+ForeignKeyTableName NVARCHAR(200),
+ForeignKeyColumnName NVARCHAR(200),
+PrimaryKeyName NVARCHAR(200),
+PrimaryKeyTableSchema NVARCHAR(200),
+PrimaryKeyTableName NVARCHAR(200),
+PrimaryKeyColumnName NVARCHAR(200)
+)
+INSERT INTO @temp(ForeignKeyName, ForeignKeyTableSchema, ForeignKeyTableName, ForeignKeyColumnName)
+SELECT
+CU.CONSTRAINT_NAME,
+CU.TABLE_SCHEMA,
+CU.TABLE_NAME,
+CU.COLUMN_NAME
+FROM
+INFORMATION_SCHEMA.KEY_COLUMN_USAGE CU
+INNER JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS TC
+ON CU.CONSTRAINT_NAME = TC.CONSTRAINT_NAME
+WHERE
+TC.CONSTRAINT_TYPE = 'FOREIGN KEY'
+UPDATE @temp SET
+PrimaryKeyName = UNIQUE_CONSTRAINT_NAME
+FROM
+@temp T
+INNER JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS RC
+ON T.ForeignKeyName = RC.CONSTRAINT_NAME
+UPDATE @temp SET
+PrimaryKeyTableSchema = TABLE_SCHEMA,
+PrimaryKeyTableName = TABLE_NAME
+FROM @temp T
+INNER JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS TC
+ON T.PrimaryKeyName = TC.CONSTRAINT_NAME
+UPDATE @temp SET
+PrimaryKeyColumnName = COLUMN_NAME
+FROM @temp T
+INNER JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE KCU
+ON T.PrimaryKeyName = KCU.CONSTRAINT_NAME
+SELECT * FROM @temp
+
+--ADDING CONSTRAINT SCRIPT:
+SELECT
+'ALTER TABLE ' + ForeignKeyTableSchema + '.' 
++ ForeignKeyTableName + 
+' ADD CONSTRAINT ' + ForeignKeyName + 
+' FOREIGN KEY(' + ForeignKeyColumnName + ') REFERENCES ' + PrimaryKeyTableSchema + '.' + PrimaryKeyTableName + 
+'(' + PrimaryKeyColumnName + ') GO'
+FROM
+@temp
+GO
+
+SELECT DISTINCT SCHEMA_NAME(Schema_id), Schema_id from sys.tables 
+
+
+
+SELECT distinct FORMATMESSAGE('ALTER TABLE [%s].[%s] DROP %s',rtrim(schema_name(ObjectProperty(FK.referenced_object_id,'schemaid'))), Object_Name(FK.parent_object_id),FK.Name)
+FROM sys.foreign_keys FK
+WHERE ObjectProperty(FK.referenced_object_id,'schemaid') = 5
+ORDER BY 1
+
+
+SELECT FORMATMESSAGE('DROP TABLE [%s].[%s]', SCHEMA_NAME(Schema_id), Name) from sys.tables where schema_id = 5
+
+
+	SELECT DISTINCT FK.parent_object_id as Object_id, Object_Name(FK.parent_object_id)FK_TableName, col_name(FK.parent_object_id, FKC.parent_column_id) FK_ColName,
+			Object_Name(FK.referenced_object_id) as PK_TableName, col_name(FK.referenced_object_id, FKC.referenced_column_id) as PK_ColName, 
+			rtrim(schema_name(ObjectProperty(FK.referenced_object_id,'schemaid'))) as Schema_Name, ObjectProperty(FK.referenced_object_id,'schemaid') as schemaid 
+FROM sys.foreign_keys FK
+	INNER JOIN sys.foreign_key_columns FKC ON FKC.constraint_object_id = FK.object_id
+
+
+SELECT FORMATMESSAGE('ALTER SCHEMA [%s] TRANSFER %s.%s', 'dev_old',SCHEMA_NAME(Schema_id), Name) Name from sys.tables 
+
+
+Select FORMATMESSAGE('ALTER SCHEMA [%s] TRANSFER %s.%s', 'dev_old',SCHEMA_NAME(Schema_id), Name) 
+from sys.objects where type LIKE '%P%' and schema_id=1 AND NAME not in ('usp_Expenssive_queries','usp_Index_maintenace')
+
+
+Select FORMATMESSAGE('ALTER SCHEMA [%s] TRANSFER %s.%s', 'dev_old',SCHEMA_NAME(Schema_id), Name) 
+from sys.objects where type LIKE '%F%' and schema_id=1 
